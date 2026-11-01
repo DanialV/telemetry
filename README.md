@@ -17,7 +17,7 @@ High-throughput Go telemetry platform built with **Hexagonal Architecture**, **F
 ## 1. Quickstart (Single Command)
 
 ```bash
-docker compose up -d --build
+make up
 ```
 
 | Interface | Local URL | Notes |
@@ -31,10 +31,14 @@ docker compose up -d --build
 On startup, `simulator` streams live `1s` metrics for `15` servers, backfills `3` days for all devices, and backfills **365 full days (`31,536,000` rows)** for `server-0001` in ~26 seconds.
 
 ```bash
+make up                                 # Build and start the full stack
 make smoke                              # Run automated end-to-end smoke tests
 make simulator DEVICES=50 DAYS=3        # Run standalone device traffic generator
 make loadtest                           # Run step-ramp load test & update graphs
 make test                               # Run Go unit tests with race detector
+make logs                               # Follow container logs
+make stop                               # Gracefully stop containers (keeps data)
+make down                               # Stop stack and remove volumes
 ```
 
 ---
@@ -92,9 +96,9 @@ flowchart LR
 | **`grafana`** | `3002` | `GRAFANA_PORT` | Auto-provisioned Prometheus datasource + Load Test dashboard | UI `:3002` |
 | **`ch-ui`** | `3488` | `CH_UI_PORT` | ClickHouse visual table explorer (`telemetry` / `telemetry`) | `GET /health` |
 
-- **Start / Upgrade**: `docker compose up -d --build`
-- **Graceful Shutdown**: All Go services trap `SIGTERM`/`SIGINT`, drain active Fiber HTTP requests, flush queued micro-batches, finish ClickHouse writes + NATS `ACK`s (`nc.Drain()`), and exit cleanly (`docker compose stop`).
-- **Clean Reset**: `docker compose down -v` removes containers and data volumes.
+- **Start / Upgrade**: `make up`
+- **Graceful Shutdown**: `make stop` — Go services trap `SIGTERM`/`SIGINT`, drain active Fiber HTTP requests, flush queued micro-batches, finish ClickHouse writes + NATS `ACK`s (`nc.Drain()`), and exit cleanly.
+- **Clean Reset**: `make down` — stops containers and removes persistent volumes.
 
 ### Load Test Results (Grafana)
 

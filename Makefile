@@ -1,9 +1,15 @@
 export GOTOOLCHAIN := auto
 
-.PHONY: up down logs test smoke simulator loadtest clean
+.PHONY: up stop restart down logs test smoke simulator loadtest
 
 up:
 	docker compose up -d --build
+
+stop:
+	docker compose stop
+
+restart:
+	docker compose restart
 
 down:
 	docker compose down -v

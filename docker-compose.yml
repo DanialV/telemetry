@@ -1,0 +1,204 @@
+services:
+  nats:
+    image: nats:2.10-alpine
+    restart: unless-stopped
+    command: ["-c", "/etc/nats/nats-server.conf"]
+    environment:
+      GOMEMLIMIT: "320MiB"
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats_data:/data
+      - ./deployments/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8222/healthz"]
+      interval: 3s
+      timeout: 2s
+      retries: 15
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8-alpine
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: telemetry
+      CLICKHOUSE_USER: telemetry
+      CLICKHOUSE_PASSWORD: telemetry
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./deployments/clickhouse/config.d/memory.xml:/etc/clickhouse-server/config.d/memory.xml:ro
+      - ./deployments/clickhouse/config.d/prometheus.xml:/etc/clickhouse-server/config.d/prometheus.xml:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--user", "telemetry", "--password", "telemetry", "--query", "SELECT 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  ingestor:
+    build: .
+    restart: unless-stopped
+    command: ["/usr/local/bin/ingestor"]
+    environment:
+      GOMEMLIMIT: "384MiB"
+      HTTP_ADDR: ":8082"
+      NATS_URL: "nats://nats:4222"
+      INGEST_WORKERS: "6"
+      INGEST_BATCH_SIZE: "4000"
+      INGEST_FLUSH_MS: "8"
+    ports:
+      - "${INGEST_PORT:-8082}:8082"
+    depends_on:
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8082/healthz"]
+      interval: 3s
+      timeout: 2s
+      retries: 15
+
+  processor:
+    build: .
+    restart: unless-stopped
+    command: ["/usr/local/bin/processor"]
+    environment:
+      GOMEMLIMIT: "512MiB"
+      NATS_URL: "nats://nats:4222"
+      CLICKHOUSE_ADDR: "clickhouse:9000"
+      CLICKHOUSE_DB: "telemetry"
+      CLICKHOUSE_USER: "telemetry"
+      CLICKHOUSE_PASSWORD: "telemetry"
+      METRICS_ADDR: ":8083"
+      PROCESSOR_WORKERS: "3"
+      PROCESSOR_FETCH_BATCH: "32"
+    ports:
+      - "${PROCESSOR_PORT:-8083}:8083"
+    depends_on:
+      nats:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8083/healthz"]
+      interval: 3s
+      timeout: 2s
+      retries: 15
+
+  query-api:
+    build: .
+    restart: unless-stopped
+    command: ["/usr/local/bin/query-api"]
+    environment:
+      GOMEMLIMIT: "256MiB"
+      HTTP_ADDR: ":8084"
+      CLICKHOUSE_ADDR: "clickhouse:9000"
+      CLICKHOUSE_DB: "telemetry"
+      CLICKHOUSE_USER: "telemetry"
+      CLICKHOUSE_PASSWORD: "telemetry"
+    ports:
+      - "${QUERY_PORT:-8084}:8084"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      processor:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8084/healthz"]
+      interval: 3s
+      timeout: 2s
+      retries: 15
+
+  simulator:
+    build: .
+    restart: unless-stopped
+    command: ["/usr/local/bin/simulator"]
+    environment:
+      GOMEMLIMIT: "256MiB"
+      INGEST_URL: "http://ingestor:8082/api/v1/telemetry/batch"
+      SIM_DEVICES: "${SIM_DEVICES:-15}"
+      SIM_BACKFILL_DAYS: "${SIM_BACKFILL_DAYS:-3}"
+      SIM_YEAR_DEVICES: "${SIM_YEAR_DEVICES:-1}"
+      SIM_BACKFILL_WORKERS: "${SIM_BACKFILL_WORKERS:-8}"
+    depends_on:
+      ingestor:
+        condition: service_healthy
+      processor:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=6h"
+    ports:
+      - "${PROMETHEUS_PORT:-9092}:9090"
+    volumes:
+      - ./deployments/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      ingestor:
+        condition: service_healthy
+      processor:
+        condition: service_healthy
+      query-api:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    restart: unless-stopped
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+      GF_SECURITY_ADMIN_PASSWORD: "admin"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: "/var/lib/grafana/dashboards/telemetry-loadtest.json"
+    ports:
+      - "${GRAFANA_PORT:-3002}:3000"
+    volumes:
+      - ./deployments/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deployments/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
+  ch-ui:
+    image: ghcr.io/caioricciuti/ch-ui:latest
+    restart: unless-stopped
+    command:
+      - "--clickhouse-url"
+      - "http://clickhouse:8123"
+      - "--connection-name"
+      - "Telemetry ClickHouse"
+    ports:
+      - "${CH_UI_PORT:-3488}:3488"
+    volumes:
+      - ch_ui_data:/app/data
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+
+  smoketest:
+    build: .
+    profiles: ["tools"]
+    command: ["/usr/local/bin/smoketest"]
+    environment:
+      INGEST_BASE_URL: "http://ingestor:8082"
+      PROCESSOR_BASE_URL: "http://processor:8083"
+      QUERY_BASE_URL: "http://query-api:8084"
+    depends_on:
+      ingestor:
+        condition: service_healthy
+      processor:
+        condition: service_healthy
+      query-api:
+        condition: service_healthy
+
+volumes:
+  nats_data:
+  clickhouse_data:
+  ch_ui_data:

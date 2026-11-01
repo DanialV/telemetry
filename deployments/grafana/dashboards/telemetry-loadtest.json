@@ -1,0 +1,179 @@
+{
+  "uid": "telemetry-loadtest",
+  "title": "Telemetry Platform — Load Test & System Health",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": {
+    "from": "now-5m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Peak Ingest Rate",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }, { "color": "green", "value": 10000 }]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["max"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "area" },
+      "targets": [
+        { "expr": "rate(telemetry_ingested_samples_total{job=\"ingestor\"}[6s])", "interval": "2s", "refId": "A" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Total Persisted Rows",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none" },
+      "targets": [
+        { "expr": "telemetry_persisted_samples_total{job=\"processor\"}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "1-Year Query Latency (Server)",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 250 },
+              { "color": "red", "value": 1000 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "area" },
+      "targets": [
+        { "expr": "telemetry_query_last_ms{job=\"query-api\",resolution=\"1h\"}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Persist Errors",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none" },
+      "targets": [
+        { "expr": "telemetry_persist_errors_total{job=\"processor\"}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Write Throughput: Ingest Rate vs. ClickHouse Persist Rate (samples/s)",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": { "lineWidth": 2, "fillOpacity": 15, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "rate(telemetry_ingested_samples_total{job=\"ingestor\"}[6s])", "interval": "2s", "legendFormat": "Ingestor Accepted / sec", "refId": "A" },
+        { "expr": "rate(telemetry_persisted_samples_total{job=\"processor\"}[6s])", "interval": "2s", "legendFormat": "ClickHouse Persisted / sec", "refId": "B" }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Chart Query Latency Under Write Load (SLO < 1000 ms)",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "lineWidth": 2, "fillOpacity": 12, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "telemetry_query_last_ms{job=\"query-api\",resolution=\"1h\"}", "interval": "2s", "legendFormat": "1y Window (1h Rollup)", "refId": "A" },
+        { "expr": "telemetry_query_last_ms{job=\"query-api\",resolution=\"1m\"}", "interval": "2s", "legendFormat": "24h Window (1m Rollup)", "refId": "B" },
+        { "expr": "telemetry_query_last_ms{job=\"query-api\",resolution=\"1s\"}", "interval": "2s", "legendFormat": "5m Window (1s Raw)", "refId": "C" }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Go Service CPU Usage (%)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": { "lineWidth": 2, "fillOpacity": 12, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "rate(process_cpu_seconds_total{job=\"ingestor\"}[6s]) * 100", "interval": "2s", "legendFormat": "ingestor CPU %", "refId": "A" },
+        { "expr": "rate(process_cpu_seconds_total{job=\"processor\"}[6s]) * 100", "interval": "2s", "legendFormat": "processor CPU %", "refId": "B" },
+        { "expr": "rate(process_cpu_seconds_total{job=\"query-api\"}[6s]) * 100", "interval": "2s", "legendFormat": "query-api CPU %", "refId": "C" }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Memory Usage Under Load (ClickHouse & Go Services)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": { "lineWidth": 2, "fillOpacity": 12, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "ClickHouseMetrics_MemoryTracking", "legendFormat": "clickhouse tracked memory", "refId": "A" },
+        { "expr": "process_resident_memory_bytes{job=\"ingestor\"}", "legendFormat": "ingestor RSS", "refId": "B" },
+        { "expr": "process_resident_memory_bytes{job=\"processor\"}", "legendFormat": "processor RSS", "refId": "C" },
+        { "expr": "process_resident_memory_bytes{job=\"query-api\"}", "legendFormat": "query-api RSS", "refId": "D" }
+      ]
+    }
+  ]
+}

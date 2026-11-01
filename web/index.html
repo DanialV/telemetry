@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>Server Sensor Telemetry</title>
+  <style>
+    :root {
+      --bg-light: #f6f8fa;
+      --bg-dark: #0d1117;
+      --panel-light: #ffffff;
+      --panel-dark: #161b22;
+      --border-light: #d0d7de;
+      --border-dark: #30363d;
+      --text-light: #1f2328;
+      --text-dark: #e6edf3;
+      --muted-light: #59636e;
+      --muted-dark: #8b949e;
+      --accent-light: #0969da;
+      --accent-dark: #58a6ff;
+      --chip-bg-light: #eef2f6;
+      --chip-bg-dark: #21262d;
+      --ok-light: #1a7f37;
+      --ok-dark: #3fb950;
+
+      --bg: var(--bg-light);
+      --panel: var(--panel-light);
+      --border: var(--border-light);
+      --text: var(--text-light);
+      --muted: var(--muted-light);
+      --accent: var(--accent-light);
+      --chip-bg: var(--chip-bg-light);
+      --ok: var(--ok-light);
+
+      color-scheme: light dark;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: var(--bg-dark);
+        --panel: var(--panel-dark);
+        --border: var(--border-dark);
+        --text: var(--text-dark);
+        --muted: var(--muted-dark);
+        --accent: var(--accent-dark);
+        --chip-bg: var(--chip-bg-dark);
+        --ok: var(--ok-dark);
+      }
+    }
+
+    @supports (color: light-dark(white, black)) {
+      :root {
+        --bg: light-dark(var(--bg-light), var(--bg-dark));
+        --panel: light-dark(var(--panel-light), var(--panel-dark));
+        --border: light-dark(var(--border-light), var(--border-dark));
+        --text: light-dark(var(--text-light), var(--text-dark));
+        --muted: light-dark(var(--muted-light), var(--muted-dark));
+        --accent: light-dark(var(--accent-light), var(--accent-dark));
+        --chip-bg: light-dark(var(--chip-bg-light), var(--chip-bg-dark));
+        --ok: light-dark(var(--ok-light), var(--ok-dark));
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: 100vh;
+    }
+
+    @media (max-width: 900px) {
+      .app { grid-template-columns: 1fr; }
+    }
+
+    .sidebar {
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-height: 100vh;
+    }
+
+    .brand {
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .search-input, .dt-input {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .device-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .device-btn {
+      width: 100%;
+      text-align: left;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .device-btn:hover { background: var(--chip-bg); }
+
+    .device-btn[aria-current="true"] {
+      background: var(--chip-bg);
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+
+    .device-meta {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .main {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+
+    .controls-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .range-btn, .sensor-chip, .action-btn {
+      padding: 6px 10px;
+      font-size: 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--chip-bg);
+      color: var(--text);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+    }
+
+    .range-btn[aria-pressed="true"], .action-btn[aria-pressed="true"] {
+      border-color: var(--accent);
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .sensor-chip[aria-pressed="false"] {
+      opacity: 0.45;
+    }
+
+    .sensor-chip[aria-pressed="true"] {
+      border-color: var(--accent);
+    }
+
+    .swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .custom-range {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .custom-range .dt-input { width: auto; }
+
+    .stats-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: var(--chip-bg);
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .badge.fast { color: var(--ok); }
+
+    .chart-wrap {
+      position: relative;
+      width: 100%;
+      height: 440px;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: crosshair;
+    }
+
+    .tooltip {
+      position: absolute;
+      pointer-events: none;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 12px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+      z-index: 10;
+      min-width: 190px;
+      display: none;
+    }
+
+    .tt-time {
+      font-weight: 700;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tt-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 2px 0;
+    }
+
+    .error-banner {
+      color: #cf222e;
+      font-size: 13px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <span>Devices</span>
+        <span id="deviceCount" class="device-meta">0</span>
+      </div>
+      <input id="deviceSearch" class="search-input" type="search" placeholder="Search device ID..." aria-label="Search device ID">
+      <ul id="deviceList" class="device-list"></ul>
+    </aside>
+
+    <main class="main">
+      <section class="card">
+        <div class="controls-grid">
+          <div class="btn-group" id="sensorChips" role="group" aria-label="Sensors"></div>
+          <div class="btn-group">
+            <button type="button" class="action-btn" id="selectAllBtn">All</button>
+            <button type="button" class="action-btn" id="liveBtn" aria-pressed="false">Live (2s)</button>
+          </div>
+        </div>
+
+        <div class="controls-grid" style="margin-top: 12px;">
+          <div class="btn-group" id="rangeButtons" role="group" aria-label="Preset time ranges"></div>
+        </div>
+
+        <div class="custom-range">
+          <span>Custom window (5m – 1y):</span>
+          <input type="datetime-local" id="fromInput" class="dt-input" aria-label="Start time">
+          <span>to</span>
+          <input type="datetime-local" id="toInput" class="dt-input" aria-label="End time">
+          <button type="button" class="action-btn" id="applyCustomBtn">Apply</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="stats-bar">
+          <div>
+            <strong id="activeDeviceTitle">Select a device</strong>
+            <span id="rangeLabel" style="margin-left: 8px;"></span>
+          </div>
+          <div class="btn-group">
+            <span class="badge" id="resolutionBadge">Resolution: —</span>
+            <span class="badge" id="pointsBadge">Points: 0</span>
+            <span class="badge fast" id="latencyBadge">Load: — ms</span>
+          </div>
+        </div>
+        <div id="errorBanner" class="error-banner"></div>
+        <div class="chart-wrap" id="chartWrap">
+          <canvas id="chartCanvas"></canvas>
+          <div id="tooltip" class="tooltip"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const SENSORS = [
+      { id: "cpu",        label: "CPU %",        color: "#2f81f7" },
+      { id: "memory",     label: "Memory %",     color: "#a371f7" },
+      { id: "disk_space", label: "Disk Space %", color: "#d29922" },
+      { id: "disk_busy",  label: "Disk Busy %",  color: "#f85149" },
+      { id: "net_rx",     label: "Net RX %",     color: "#3fb950" },
+      { id: "net_tx",     label: "Net TX %",     color: "#39c5cf" },
+      { id: "fan",        label: "Fan Speed %",  color: "#db61a2" }
+    ];
+
+    const PRESETS = [
+      { id: "5m",  label: "5m" },
+      { id: "15m", label: "15m" },
+      { id: "1h",  label: "1h" },
+      { id: "6h",  label: "6h" },
+      { id: "24h", label: "24h" },
+      { id: "7d",  label: "7d" },
+      { id: "30d", label: "30d" },
+      { id: "90d", label: "90d" },
+      { id: "1y",  label: "1y" }
+    ];
+
+    const state = {
+      devices: [],
+      selectedDevice: "",
+      selectedSensors: new Set(["cpu", "memory", "disk_busy", "net_rx"]),
+      activePreset: "5m",
+      customFrom: null,
+      customTo: null,
+      live: false,
+      liveTimer: null,
+      data: null,
+      hoverIdx: -1,
+      isDark: window.matchMedia("(prefers-color-scheme: dark)").matches
+    };
+
+    const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    darkQuery.addEventListener("change", (e) => {
+      state.isDark = e.matches;
+      renderChart();
+    });
+
+    const elDeviceSearch = document.getElementById("deviceSearch");
+    const elDeviceList = document.getElementById("deviceList");
+    const elDeviceCount = document.getElementById("deviceCount");
+    const elSensorChips = document.getElementById("sensorChips");
+    const elRangeButtons = document.getElementById("rangeButtons");
+    const elCanvas = document.getElementById("chartCanvas");
+    const elChartWrap = document.getElementById("chartWrap");
+    const elTooltip = document.getElementById("tooltip");
+    const elError = document.getElementById("errorBanner");
+
+    function initControls() {
+      SENSORS.forEach((s) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "sensor-chip";
+        btn.dataset.sensor = s.id;
+        btn.setAttribute("aria-pressed", String(state.selectedSensors.has(s.id)));
+        btn.innerHTML = `<span class="swatch" style="background:${s.color}"></span><span>${s.label}</span>`;
+        btn.addEventListener("click", () => {
+          if (state.selectedSensors.has(s.id)) {
+            if (state.selectedSensors.size > 1) state.selectedSensors.delete(s.id);
+          } else {
+            state.selectedSensors.add(s.id);
+          }
+          syncControlStates();
+          fetchSeries();
+        });
+        elSensorChips.appendChild(btn);
+      });
+
+      PRESETS.forEach((p) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "range-btn";
+        btn.dataset.range = p.id;
+        btn.textContent = p.label;
+        btn.setAttribute("aria-pressed", String(state.activePreset === p.id));
+        btn.addEventListener("click", () => {
+          state.activePreset = p.id;
+          state.customFrom = null;
+          state.customTo = null;
+          syncControlStates();
+          fetchSeries();
+        });
+        elRangeButtons.appendChild(btn);
+      });
+
+      document.getElementById("selectAllBtn").addEventListener("click", () => {
+        SENSORS.forEach((s) => state.selectedSensors.add(s.id));
+        syncControlStates();
+        fetchSeries();
+      });
+
+      const liveBtn = document.getElementById("liveBtn");
+      liveBtn.addEventListener("click", () => {
+        state.live = !state.live;
+        liveBtn.setAttribute("aria-pressed", String(state.live));
+        if (state.live) {
+          state.liveTimer = setInterval(fetchSeries, 2000);
+        } else if (state.liveTimer) {
+          clearInterval(state.liveTimer);
+          state.liveTimer = null;
+        }
+      });
+
+      document.getElementById("applyCustomBtn").addEventListener("click", () => {
+        const fromVal = document.getElementById("fromInput").value;
+        const toVal = document.getElementById("toInput").value;
+        if (!fromVal || !toVal) return;
+        state.customFrom = Math.floor(new Date(fromVal).getTime() / 1000);
+        state.customTo = Math.floor(new Date(toVal).getTime() / 1000);
+        state.activePreset = "";
+        syncControlStates();
+        fetchSeries();
+      });
+
+      let searchDebounce = null;
+      elDeviceSearch.addEventListener("input", () => {
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(() => fetchDevices(elDeviceSearch.value), 150);
+      });
+    }
+
+    function syncControlStates() {
+      elSensorChips.querySelectorAll(".sensor-chip").forEach((btn) => {
+        btn.setAttribute("aria-pressed", String(state.selectedSensors.has(btn.dataset.sensor)));
+      });
+      elRangeButtons.querySelectorAll(".range-btn").forEach((btn) => {
+        btn.setAttribute("aria-pressed", String(state.activePreset === btn.dataset.range));
+      });
+    }
+
+    async function fetchDevices(query = "") {
+      try {
+        const res = await fetch(`/api/v1/devices?q=${encodeURIComponent(query)}&limit=200`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const payload = await res.json();
+        state.devices = payload.devices || [];
+        elDeviceCount.textContent = String(state.devices.length);
+
+        if (!state.selectedDevice && state.devices.length > 0) {
+          state.selectedDevice = state.devices[0].id;
+          fetchSeries();
+        }
+        renderDeviceList();
+      } catch (err) {
+        showError(`Failed to load devices: ${err.message}`);
+      }
+    }
+
+    function renderDeviceList() {
+      elDeviceList.innerHTML = "";
+      state.devices.forEach((dev) => {
+        const li = document.createElement("li");
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "device-btn";
+        btn.setAttribute("aria-current", String(dev.id === state.selectedDevice));
+        const ageSec = Math.max(0, Math.floor(Date.now() / 1000 - dev.last_seen));
+        const ageText = ageSec < 60 ? `${ageSec}s ago` : ageSec < 3600 ? `${Math.floor(ageSec / 60)}m ago` : `${Math.floor(ageSec / 3600)}h ago`;
+        btn.innerHTML = `<span>${escapeHTML(dev.id)}</span><span class="device-meta">${ageText}</span>`;
+        btn.addEventListener("click", () => {
+          state.selectedDevice = dev.id;
+          renderDeviceList();
+          fetchSeries();
+        });
+        li.appendChild(btn);
+        elDeviceList.appendChild(li);
+      });
+    }
+
+    let activeFetchController = null;
+
+    async function fetchSeries() {
+      if (!state.selectedDevice || state.selectedSensors.size === 0) return;
+
+      if (activeFetchController) activeFetchController.abort();
+      activeFetchController = new AbortController();
+
+      const sensorsParam = Array.from(state.selectedSensors).join(",");
+      let url = `/api/v1/series?device_id=${encodeURIComponent(state.selectedDevice)}&sensors=${encodeURIComponent(sensorsParam)}`;
+      if (state.activePreset) {
+        url += `&range=${encodeURIComponent(state.activePreset)}`;
+      } else if (state.customFrom && state.customTo) {
+        url += `&from=${state.customFrom}&to=${state.customTo}`;
+      }
+
+      const t0 = performance.now();
+      try {
+        const res = await fetch(url, { signal: activeFetchController.signal });
+        const payload = await res.json();
+        if (!res.ok) {
+          throw new Error(payload.error || `HTTP ${res.status}`);
+        }
+        const totalMs = performance.now() - t0;
+        hideError();
+        state.data = payload;
+        state.hoverIdx = -1;
+
+        document.getElementById("activeDeviceTitle").textContent = payload.device_id;
+        document.getElementById("resolutionBadge").textContent = `Resolution: ${payload.resolution}`;
+        document.getElementById("pointsBadge").textContent = `Points: ${payload.timestamps.length.toLocaleString()}`;
+        document.getElementById("latencyBadge").textContent = `Server: ${payload.query_ms.toFixed(1)} ms | Total: ${totalMs.toFixed(0)} ms`;
+        document.getElementById("rangeLabel").textContent =
+          `${formatDateTime(payload.from)} → ${formatDateTime(payload.to)}`;
+
+        renderChart();
+      } catch (err) {
+        if (err.name === "AbortError") return;
+        showError(err.message);
+      }
+    }
+
+    function renderChart() {
+      const rect = elChartWrap.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      elCanvas.width = Math.floor(rect.width * dpr);
+      elCanvas.height = Math.floor(rect.height * dpr);
+
+      const ctx = elCanvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const W = rect.width;
+      const H = rect.height;
+      ctx.clearRect(0, 0, W, H);
+
+      const pad = { top: 16, right: 20, bottom: 34, left: 48 };
+      const plotW = Math.max(10, W - pad.left - pad.right);
+      const plotH = Math.max(10, H - pad.top - pad.bottom);
+
+      const gridColor = state.isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+      const axisText = state.isDark ? "#8b949e" : "#59636e";
+
+      ctx.font = "11px -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.textBaseline = "middle";
+
+      for (let pct = 0; pct <= 100; pct += 20) {
+        const y = pad.top + plotH * (1 - pct / 100);
+        ctx.strokeStyle = gridColor;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(pad.left + plotW, y);
+        ctx.stroke();
+
+        ctx.fillStyle = axisText;
+        ctx.textAlign = "right";
+        ctx.fillText(`${pct}%`, pad.left - 8, y);
+      }
+
+      if (!state.data || !state.data.timestamps || state.data.timestamps.length === 0) {
+        ctx.fillStyle = axisText;
+        ctx.textAlign = "center";
+        ctx.fillText("No samples in selected time range", pad.left + plotW / 2, pad.top + plotH / 2);
+        elTooltip.style.display = "none";
+        return;
+      }
+
+      const ts = state.data.timestamps;
+      const minT = state.data.from;
+      const maxT = Math.max(minT + 1, state.data.to);
+      const spanT = maxT - minT;
+
+      const xTicks = 6;
+      ctx.textBaseline = "top";
+      ctx.textAlign = "center";
+      for (let i = 0; i <= xTicks; i++) {
+        const frac = i / xTicks;
+        const x = pad.left + plotW * frac;
+        const tickUnix = Math.floor(minT + spanT * frac);
+
+        ctx.strokeStyle = gridColor;
+        ctx.beginPath();
+        ctx.moveTo(x, pad.top);
+        ctx.lineTo(x, pad.top + plotH);
+        ctx.stroke();
+
+        ctx.fillStyle = axisText;
+        ctx.fillText(formatAxisTick(tickUnix, spanT), x, pad.top + plotH + 8);
+      }
+
+      const colorMap = Object.fromEntries(SENSORS.map((s) => [s.id, s.color]));
+      const singleSeries = state.data.series.length === 1 && state.data.resolution !== "1s";
+
+      state.data.series.forEach((serie) => {
+        const color = colorMap[serie.sensor] || "#2f81f7";
+        const avg = serie.avg;
+        const n = ts.length;
+
+        if (singleSeries && serie.min && serie.max) {
+          ctx.fillStyle = color + "24";
+          ctx.beginPath();
+          for (let i = 0; i < n; i++) {
+            const x = pad.left + ((ts[i] - minT) / spanT) * plotW;
+            const y = pad.top + plotH * (1 - clampPct(serie.max[i]) / 100);
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          }
+          for (let i = n - 1; i >= 0; i--) {
+            const x = pad.left + ((ts[i] - minT) / spanT) * plotW;
+            const y = pad.top + plotH * (1 - clampPct(serie.min[i]) / 100);
+            ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        const stride = Math.max(1, Math.floor(n / (plotW * 2)));
+        for (let i = 0; i < n; i += stride) {
+          const x = pad.left + ((ts[i] - minT) / spanT) * plotW;
+          const y = pad.top + plotH * (1 - clampPct(avg[i]) / 100);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        if ((n - 1) % stride !== 0) {
+          const last = n - 1;
+          const x = pad.left + ((ts[last] - minT) / spanT) * plotW;
+          const y = pad.top + plotH * (1 - clampPct(avg[last]) / 100);
+          ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      });
+
+      if (state.hoverIdx >= 0 && state.hoverIdx < ts.length) {
+        const hx = pad.left + ((ts[state.hoverIdx] - minT) / spanT) * plotW;
+        ctx.strokeStyle = state.isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.35)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(hx, pad.top);
+        ctx.lineTo(hx, pad.top + plotH);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        state.data.series.forEach((serie) => {
+          const color = colorMap[serie.sensor] || "#2f81f7";
+          const hy = pad.top + plotH * (1 - clampPct(serie.avg[state.hoverIdx]) / 100);
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(hx, hy, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+    }
+
+    elCanvas.addEventListener("mousemove", (ev) => {
+      if (!state.data || !state.data.timestamps || state.data.timestamps.length === 0) return;
+      const rect = elCanvas.getBoundingClientRect();
+      const padLeft = 48;
+      const plotW = Math.max(10, rect.width - padLeft - 20);
+      const mx = ev.clientX - rect.left;
+      if (mx < padLeft || mx > padLeft + plotW) {
+        state.hoverIdx = -1;
+        elTooltip.style.display = "none";
+        renderChart();
+        return;
+      }
+
+      const frac = (mx - padLeft) / plotW;
+      const targetT = state.data.from + (state.data.to - state.data.from) * frac;
+      const idx = nearestIndex(state.data.timestamps, targetT);
+      state.hoverIdx = idx;
+      renderChart();
+
+      const labelMap = Object.fromEntries(SENSORS.map((s) => [s.id, s]));
+      let html = `<div class="tt-time">${formatDateTime(state.data.timestamps[idx])}</div>`;
+      state.data.series.forEach((serie) => {
+        const meta = labelMap[serie.sensor] || { label: serie.sensor, color: "#2f81f7" };
+        const avg = serie.avg[idx].toFixed(1);
+        const extra = state.data.resolution !== "1s"
+          ? ` <span style="color:var(--muted)">(${serie.min[idx].toFixed(0)}–${serie.max[idx].toFixed(0)})</span>`
+          : "";
+        html += `<div class="tt-row">
+          <span><span class="swatch" style="background:${meta.color}"></span> ${meta.label}</span>
+          <strong>${avg}%${extra}</strong>
+        </div>`;
+      });
+      elTooltip.innerHTML = html;
+      elTooltip.style.display = "block";
+      const leftPos = mx + 16 + 210 > rect.width ? Math.max(8, mx - 220) : mx + 16;
+      elTooltip.style.left = `${leftPos}px`;
+      elTooltip.style.top = "20px";
+    });
+
+    elCanvas.addEventListener("mouseleave", () => {
+      state.hoverIdx = -1;
+      elTooltip.style.display = "none";
+      renderChart();
+    });
+
+    new ResizeObserver(() => renderChart()).observe(elChartWrap);
+
+    function nearestIndex(arr, target) {
+      let lo = 0, hi = arr.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (arr[mid] < target) lo = mid + 1; else hi = mid;
+      }
+      if (lo > 0 && Math.abs(arr[lo - 1] - target) < Math.abs(arr[lo] - target)) {
+        return lo - 1;
+      }
+      return lo;
+    }
+
+    function clampPct(v) {
+      return Math.max(0, Math.min(100, v));
+    }
+
+    function formatDateTime(unixSec) {
+      return new Date(unixSec * 1000).toISOString().replace("T", " ").slice(0, 19) + " UTC";
+    }
+
+    function formatAxisTick(unixSec, spanSec) {
+      const iso = new Date(unixSec * 1000).toISOString();
+      if (spanSec <= 86400) return iso.slice(11, 19);
+      if (spanSec <= 30 * 86400) return iso.slice(5, 16).replace("T", " ");
+      return iso.slice(0, 10);
+    }
+
+    function showError(msg) {
+      elError.textContent = msg;
+      elError.style.display = "block";
+    }
+
+    function hideError() {
+      elError.style.display = "none";
+    }
+
+    function escapeHTML(str) {
+      return str.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]));
+    }
+
+    initControls();
+    fetchDevices();
+  </script>
+</body>
+</html>

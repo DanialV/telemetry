@@ -1,0 +1,30 @@
+global:
+  scrape_interval: 2s
+  evaluation_interval: 2s
+
+scrape_configs:
+  - job_name: "ingestor"
+    metrics_path: "/metrics"
+    params:
+      format: ["prom"]
+    static_configs:
+      - targets: ["ingestor:8082"]
+
+  - job_name: "processor"
+    metrics_path: "/metrics"
+    params:
+      format: ["prom"]
+    static_configs:
+      - targets: ["processor:8083"]
+
+  - job_name: "query-api"
+    metrics_path: "/metrics"
+    params:
+      format: ["prom"]
+    static_configs:
+      - targets: ["query-api:8084"]
+
+  - job_name: "clickhouse"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["clickhouse:9363"]

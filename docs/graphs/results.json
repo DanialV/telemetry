@@ -1,0 +1,332 @@
+[
+  {
+    "devices": 1000,
+    "duration_sec": 12.039143167,
+    "sent_samples": 11980,
+    "http_errors": 0,
+    "ingest_rate_per_sec": 1011.2845931903519,
+    "persist_rate_per_sec": 1011.2845931903519,
+    "queue_lag_samples": 0,
+    "queries": {
+      "1y": {
+        "p50_ms": 27.713,
+        "p95_ms": 34.888,
+        "p99_ms": 39.993,
+        "max_ms": 40.527,
+        "errors": 0
+      },
+      "24h": {
+        "p50_ms": 13.801,
+        "p95_ms": 17.235,
+        "p99_ms": 18.821,
+        "max_ms": 25.65,
+        "errors": 0
+      },
+      "5m": {
+        "p50_ms": 9.77,
+        "p95_ms": 15.553,
+        "p99_ms": 23.377,
+        "max_ms": 38.837,
+        "errors": 0
+      }
+    },
+    "resources": {
+      "clickhouse": {
+        "cpu_percent": 54.65,
+        "mem_mib": 1432.576
+      },
+      "ingestor": {
+        "cpu_percent": 10.298,
+        "mem_mib": 19.74
+      },
+      "nats": {
+        "cpu_percent": 2.712,
+        "mem_mib": 90.88
+      },
+      "processor": {
+        "cpu_percent": 2.2879999999999994,
+        "mem_mib": 79.79
+      },
+      "query-api": {
+        "cpu_percent": 8.65,
+        "mem_mib": 32.76
+      }
+    },
+    "sustainable": true
+  },
+  {
+    "devices": 6000,
+    "duration_sec": 12.013659958,
+    "sent_samples": 71881,
+    "http_errors": 0,
+    "ingest_rate_per_sec": 6010.574650226837,
+    "persist_rate_per_sec": 6010.574650226837,
+    "queue_lag_samples": 0,
+    "queries": {
+      "1y": {
+        "p50_ms": 21.278,
+        "p95_ms": 24.91,
+        "p99_ms": 25.405,
+        "max_ms": 25.707,
+        "errors": 0
+      },
+      "24h": {
+        "p50_ms": 10.105,
+        "p95_ms": 12.188,
+        "p99_ms": 13.191,
+        "max_ms": 14.072,
+        "errors": 0
+      },
+      "5m": {
+        "p50_ms": 7.348,
+        "p95_ms": 10.124,
+        "p99_ms": 11.215,
+        "max_ms": 11.651,
+        "errors": 0
+      }
+    },
+    "resources": {
+      "clickhouse": {
+        "cpu_percent": 61.524,
+        "mem_mib": 1518.592
+      },
+      "ingestor": {
+        "cpu_percent": 30.206,
+        "mem_mib": 26.98
+      },
+      "nats": {
+        "cpu_percent": 3.492,
+        "mem_mib": 92.01
+      },
+      "processor": {
+        "cpu_percent": 2.7960000000000003,
+        "mem_mib": 80.32
+      },
+      "query-api": {
+        "cpu_percent": 6.948,
+        "mem_mib": 33.09
+      }
+    },
+    "sustainable": true
+  },
+  {
+    "devices": 12000,
+    "duration_sec": 12.007222667,
+    "sent_samples": 143760,
+    "http_errors": 0,
+    "ingest_rate_per_sec": 11989.033933353972,
+    "persist_rate_per_sec": 11989.033933353972,
+    "queue_lag_samples": 0,
+    "queries": {
+      "1y": {
+        "p50_ms": 21.704,
+        "p95_ms": 23.28,
+        "p99_ms": 24.063,
+        "max_ms": 25.629,
+        "errors": 0
+      },
+      "24h": {
+        "p50_ms": 10.597,
+        "p95_ms": 12.662,
+        "p99_ms": 13.231,
+        "max_ms": 14.141,
+        "errors": 0
+      },
+      "5m": {
+        "p50_ms": 7.919,
+        "p95_ms": 11.176,
+        "p99_ms": 11.634,
+        "max_ms": 12.964,
+        "errors": 0
+      }
+    },
+    "resources": {
+      "clickhouse": {
+        "cpu_percent": 48.712,
+        "mem_mib": 1498.112
+      },
+      "ingestor": {
+        "cpu_percent": 51.336,
+        "mem_mib": 43.54
+      },
+      "nats": {
+        "cpu_percent": 3.7660000000000005,
+        "mem_mib": 51.6
+      },
+      "processor": {
+        "cpu_percent": 3.1819999999999995,
+        "mem_mib": 80.39
+      },
+      "query-api": {
+        "cpu_percent": 6.944,
+        "mem_mib": 35.93
+      }
+    },
+    "sustainable": true
+  },
+  {
+    "devices": 22000,
+    "duration_sec": 12.025371958,
+    "sent_samples": 263560,
+    "http_errors": 0,
+    "ingest_rate_per_sec": 21934.456657244966,
+    "persist_rate_per_sec": 21934.456657244966,
+    "queue_lag_samples": 0,
+    "queries": {
+      "1y": {
+        "p50_ms": 25.743,
+        "p95_ms": 30.083,
+        "p99_ms": 32.783,
+        "max_ms": 33.069,
+        "errors": 0
+      },
+      "24h": {
+        "p50_ms": 13.819,
+        "p95_ms": 16.988,
+        "p99_ms": 17.863,
+        "max_ms": 21.761,
+        "errors": 0
+      },
+      "5m": {
+        "p50_ms": 9.314,
+        "p95_ms": 15.096,
+        "p99_ms": 16.528,
+        "max_ms": 19.623,
+        "errors": 0
+      }
+    },
+    "resources": {
+      "clickhouse": {
+        "cpu_percent": 87.51599999999999,
+        "mem_mib": 1784.832
+      },
+      "ingestor": {
+        "cpu_percent": 88.93799999999999,
+        "mem_mib": 42.71
+      },
+      "nats": {
+        "cpu_percent": 6.586,
+        "mem_mib": 60.51
+      },
+      "processor": {
+        "cpu_percent": 5.792,
+        "mem_mib": 81.66
+      },
+      "query-api": {
+        "cpu_percent": 7.85,
+        "mem_mib": 35.12
+      }
+    },
+    "sustainable": true
+  },
+  {
+    "devices": 30000,
+    "duration_sec": 12.009008584,
+    "sent_samples": 359400,
+    "http_errors": 0,
+    "ingest_rate_per_sec": 29943.770752158536,
+    "persist_rate_per_sec": 29943.770752158536,
+    "queue_lag_samples": 0,
+    "queries": {
+      "1y": {
+        "p50_ms": 27.676,
+        "p95_ms": 34.418,
+        "p99_ms": 36.593,
+        "max_ms": 39.474,
+        "errors": 0
+      },
+      "24h": {
+        "p50_ms": 14.227,
+        "p95_ms": 18.216,
+        "p99_ms": 18.885,
+        "max_ms": 20.099,
+        "errors": 0
+      },
+      "5m": {
+        "p50_ms": 11.517,
+        "p95_ms": 15.9,
+        "p99_ms": 17.168,
+        "max_ms": 67.608,
+        "errors": 0
+      }
+    },
+    "resources": {
+      "clickhouse": {
+        "cpu_percent": 116.91399999999999,
+        "mem_mib": 1746.944
+      },
+      "ingestor": {
+        "cpu_percent": 124.292,
+        "mem_mib": 41.49
+      },
+      "nats": {
+        "cpu_percent": 7.595999999999999,
+        "mem_mib": 65.04
+      },
+      "processor": {
+        "cpu_percent": 7.239999999999999,
+        "mem_mib": 81.32
+      },
+      "query-api": {
+        "cpu_percent": 8.4,
+        "mem_mib": 34.8
+      }
+    },
+    "sustainable": true
+  },
+  {
+    "devices": 40000,
+    "duration_sec": 12.002221375,
+    "sent_samples": 479009,
+    "http_errors": 0,
+    "ingest_rate_per_sec": 39942.189451575585,
+    "persist_rate_per_sec": 39943.439220225184,
+    "queue_lag_samples": 0,
+    "queries": {
+      "1y": {
+        "p50_ms": 32.706,
+        "p95_ms": 39.596,
+        "p99_ms": 43.697,
+        "max_ms": 44.56,
+        "errors": 0
+      },
+      "24h": {
+        "p50_ms": 17.696,
+        "p95_ms": 23.212,
+        "p99_ms": 25.874,
+        "max_ms": 26.878,
+        "errors": 0
+      },
+      "5m": {
+        "p50_ms": 14.5,
+        "p95_ms": 20.116,
+        "p99_ms": 23.55,
+        "max_ms": 24.05,
+        "errors": 0
+      }
+    },
+    "resources": {
+      "clickhouse": {
+        "cpu_percent": 186.93,
+        "mem_mib": 1995.776
+      },
+      "ingestor": {
+        "cpu_percent": 159.95800000000003,
+        "mem_mib": 42.21
+      },
+      "nats": {
+        "cpu_percent": 10.116,
+        "mem_mib": 60.66
+      },
+      "processor": {
+        "cpu_percent": 10.232000000000001,
+        "mem_mib": 81.94
+      },
+      "query-api": {
+        "cpu_percent": 8.964,
+        "mem_mib": 36.46
+      }
+    },
+    "sustainable": true
+  }
+]

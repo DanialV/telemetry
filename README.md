@@ -1,8 +1,14 @@
 # Server Telemetry Platform
 
-High-throughput Go telemetry backend built with **Hexagonal Architecture**, **Fiber**, **NATS JetStream**, **ClickHouse**, and **Prometheus + Grafana**. It ingests 7 percentage sensors (`0–100%`) emitted every second per server and serves `5m` to `1y` charts in **`~10–25 ms`** (`< 1s` target).
+![Go](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat-square&logo=go&logoColor=white)
+![Fiber](https://img.shields.io/badge/HTTP-Fiber_v3-0284c7?style=flat-square)
+![NATS](https://img.shields.io/badge/WAL-NATS_JetStream-d97706?style=flat-square)
+![ClickHouse](https://img.shields.io/badge/DB-ClickHouse-059669?style=flat-square&logo=clickhouse&logoColor=white)
+![Grafana](https://img.shields.io/badge/Metrics-Prometheus_%2B_Grafana-e11d48?style=flat-square&logo=grafana&logoColor=white)
 
-- **Architecture & Design Doc**: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+High-throughput Go telemetry platform built with **Hexagonal Architecture**, **Fiber**, **NATS JetStream**, **ClickHouse**, and **Prometheus + Grafana**. It ingests 7 percentage sensors (`0–100%`) emitted every second per server and serves `5m` to `1y` charts in **`~10–25 ms`** (`< 1s` target).
+
+- **Architecture & System Design**: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - **Detailed Load-Test Report**: [`docs/LOAD_TEST.md`](docs/LOAD_TEST.md)
 - **Architecture Decision Records**: [`docs/adr/`](docs/adr/)
 
@@ -14,16 +20,16 @@ High-throughput Go telemetry backend built with **Hexagonal Architecture**, **Fi
 docker compose up -d --build
 ```
 
-Once running:
-- **Web Dashboard (`web/index.html`)**: http://localhost:8084
-- **Grafana Load-Test & Ops Dashboard**: http://localhost:3002
-- **ClickHouse Admin UI (`CH-UI`)**: http://localhost:3488 (`telemetry` / `telemetry`)
-- **Ingestor HTTP Endpoint**: `http://localhost:8082/api/v1/telemetry`
-- **Prometheus**: http://localhost:9092
+| Interface | Local URL | Notes |
+| :--- | :--- | :--- |
+| 🟣 **Web Dashboard (`web/index.html`)** | http://localhost:8084 | `5m`–`1y` interactive sensor charts (`0–100%` axis) |
+| 🔴 **Grafana Dashboard** | http://localhost:3002 | Auto-provisioned load-test & service metrics (no login) |
+| 🟢 **ClickHouse Admin (`CH-UI`)** | http://localhost:3488 | Visual table browser & SQL UI (`telemetry` / `telemetry`) |
+| 🔵 **Ingestor HTTP API** | `http://localhost:8082/api/v1/telemetry` | Single & batch JSON + optional `gzip` |
+| 🟠 **Prometheus** | http://localhost:9092 | Scrapes Go services & ClickHouse every `2s` |
 
-On startup, the `simulator` container streams live `1s` metrics for `15` servers, backfills `3` days of history for all devices, and backfills **365 full days (`31,536,000` rows)** for `server-0001` in ~26 seconds.
+On startup, `simulator` streams live `1s` metrics for `15` servers, backfills `3` days for all devices, and backfills **365 full days (`31,536,000` rows)** for `server-0001` in ~26 seconds.
 
-### Useful Commands
 ```bash
 make smoke                              # Run automated end-to-end smoke tests
 make simulator DEVICES=50 DAYS=3        # Run standalone device traffic generator
@@ -35,24 +41,40 @@ make test                               # Run Go unit tests with race detector
 
 ## 2. Code Walkthrough: End-to-End Message Flow
 
-Here is what happens in the codebase from the moment a server sends a metric until it lands on disk and renders on a chart:
+```mermaid
+flowchart LR
+    A["1. HTTP POST\nhttpingest + domain.NewSample"] --> B["2. 8ms Group-Commit\nnatspub -> JetStream WAL"]
+    B --> C["3. Pull & Sort\nnatssub -> ProcessBatch"]
+    C --> D["4. Columnar Insert\nclickhouse + 1m/1h MVs"]
+    D --> E["5. Resolution Router\nhttpquery -> web/index.html"]
+
+    classDef step1 fill:#312e81,stroke:#818cf8,stroke-width:2px,color:#eef2ff
+    classDef step2 fill:#78350f,stroke:#f59e0b,stroke-width:2px,color:#fffbeb
+    classDef step3 fill:#0c4a6e,stroke:#38bdf8,stroke-width:2px,color:#f0f9ff
+    classDef step4 fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#ecfdf5
+    classDef step5 fill:#4c1d95,stroke:#c084fc,stroke-width:2px,color:#faf5ff
+
+    class A step1
+    class B step2
+    class C step3
+    class D step4
+    class E step5
+```
 
 1. **HTTP Receive & Domain Validation (`ingestor`)**
-   - [`httpingest/handler.go`](internal/adapter/inbound/httpingest/handler.go) reads the raw Fiber request body (decompressing pooled `gzip` if needed) and [`payload.go`](internal/adapter/inbound/httpingest/payload.go) decodes single or batched JSON samples.
-   - [`domain.NewSample`](internal/domain/sample.go) enforces all invariants before anything enters the pipeline: non-empty `device_id`, valid UTC second timestamp, and all 7 sensor percentages strictly within `[0, 100]` (rejecting `NaN`/out-of-bounds with `400 Bad Request`).
+   - [`httpingest/handler.go`](internal/adapter/inbound/httpingest/handler.go) reads the Fiber request body (decompressing pooled `gzip` when set) and [`payload.go`](internal/adapter/inbound/httpingest/payload.go) decodes single or batched JSON samples.
+   - [`domain.NewSample`](internal/domain/sample.go) checks `device_id`, UTC timestamp, and `[0, 100]` bounds on all 7 sensors—rejecting invalid values immediately with `400 Bad Request`.
 
 2. **Micro-Batch Group Commit to Durable WAL (`natspub`)**
-   - [`usecase.IngestService`](internal/usecase/ingest.go) hands validated samples to [`natspub.Publisher`](internal/adapter/outbound/natspub/publisher.go).
-   - Instead of hitting disk per HTTP request, worker goroutines coalesce concurrent requests over an **`8 ms` / `4,000`-sample** window, pack them into a compact `TLMB` binary frame ([`codec/batch.go`](internal/adapter/codec/batch.go)), and wait for NATS JetStream's synchronous disk `PubAck` before returning `202 Accepted`. If the `2 GiB` WAL fills up, `DiscardNew` returns `503 Service Unavailable` so agents retry instead of losing data silently.
+   - [`usecase.IngestService`](internal/usecase/ingest.go) passes samples to [`natspub.Publisher`](internal/adapter/outbound/natspub/publisher.go), where worker goroutines group concurrent requests over **`8 ms` / `4,000` samples**, encode a compact `TLMB` binary frame ([`codec/batch.go`](internal/adapter/codec/batch.go)), and wait for NATS JetStream's disk `PubAck` before returning `202 Accepted` (`503` backpressure if the `2 GiB` WAL fills up).
 
 3. **Pull Consumption, Sorting & Columnar Write (`processor`)**
-   - [`natssub.Consumer`](internal/adapter/inbound/natssub/consumer.go) pulls batches of binary frames from JetStream (`WorkQueuePolicy`).
-   - [`usecase.ProcessBatchService`](internal/usecase/process.go) sorts the combined slice deterministically by `(DeviceID, Timestamp)`. Sorting matches ClickHouse's primary key (`ORDER BY (device_id, ts)`) and makes block-hash deduplication (`non_replicated_deduplication_window = 1000`) drop retried batches cleanly.
-   - [`clickhouse/writer.go`](internal/adapter/outbound/clickhouse/writer.go) appends rows directly into native typed column slices (`PrepareBatch` + `Column.Append`). JetStream `msg.Ack()` is sent **only after** `batch.Send()` commits (`NakWithDelay` on failure).
+   - [`natssub.Consumer`](internal/adapter/inbound/natssub/consumer.go) pulls frame batches from JetStream (`WorkQueuePolicy`), and [`usecase.ProcessBatchService`](internal/usecase/process.go) sorts rows by `(DeviceID, Timestamp)` so ClickHouse writes sequentially and drops retried duplicate blocks by hash.
+   - [`clickhouse/writer.go`](internal/adapter/outbound/clickhouse/writer.go) appends native typed columns (`PrepareBatch` + `Column.Append`) and sends JetStream `msg.Ack()` **only after** commit (`NakWithDelay` on error).
 
 4. **Write-Time Rollups & Sub-Second Query Routing (`query-api`)**
-   - At `INSERT` time inside ClickHouse ([`clickhouse/schema.go`](internal/adapter/outbound/clickhouse/schema.go)), Incremental Materialized Views automatically update `telemetry_1m` (`1m` buckets), `telemetry_1h` (`1h` buckets storing `avgState`, `min`, `max`), and `devices_registry`.
-   - When the browser requests `/api/v1/series`, [`domain.SelectResolution`](internal/domain/query.go) picks `1s` (`≤ 1h`), `1m` (`≤ 7d`), or `1h` (`> 7d` up to `1y`), and [`clickhouse/reader.go`](internal/adapter/outbound/clickhouse/reader.go) reads at most `8,760` pre-aggregated rows for a full year—returning to [`web/index.html`](web/index.html) in `~10–20 ms`.
+   - On insert ([`clickhouse/schema.go`](internal/adapter/outbound/clickhouse/schema.go)), ClickHouse Materialized Views update `telemetry_1m`, `telemetry_1h` (`avgState`, `min`, `max`), and `devices_registry`.
+   - [`domain.SelectResolution`](internal/domain/query.go) routes `≤ 1h` to `1s` raw, `≤ 7d` to `1m`, and `> 7d–1y` to `1h` (`8,760` rows max), returning to [`web/index.html`](web/index.html) in `~10–20 ms`.
 
 ---
 
@@ -60,28 +82,25 @@ Here is what happens in the codebase from the moment a server sends a metric unt
 
 ### Deployment Guide
 
-The stack runs via [`docker-compose.yml`](docker-compose.yml) using a multi-stage static Go build ([`Dockerfile`](Dockerfile)):
-
-| Service | Default Host Port | Port Override Env | Key Tuning Environment Variables | Healthcheck |
+| Service | Host Port | Override Env | Key Tuning Variables | Healthcheck |
 | :--- | :--- | :--- | :--- | :--- |
 | **`ingestor`** | `8082` | `INGEST_PORT` | `INGEST_WORKERS=6`, `INGEST_BATCH_SIZE=4000`, `INGEST_FLUSH_MS=8` | `GET /healthz` |
 | **`processor`** | `8083` | `PROCESSOR_PORT` | `PROCESSOR_WORKERS=3`, `PROCESSOR_FETCH_BATCH=32` | `GET /healthz` |
 | **`query-api`** | `8084` | `QUERY_PORT` | `CLICKHOUSE_ADDR=clickhouse:9000` | `GET /healthz` |
-| **`clickhouse`** | `8123` / `9000` | — | Capped at `2 GiB` (`deployments/clickhouse/config.d/memory.xml`) | `SELECT 1` |
-| **`nats`** | `4222` / `8222` | — | JetStream `2 GiB` file store (`deployments/nats/nats-server.conf`) | `GET /healthz` |
+| **`clickhouse`** | `8123` / `9000` | — | `2 GiB` cap (`deployments/clickhouse/config.d/memory.xml`) | `SELECT 1` |
+| **`nats`** | `4222` / `8222` | — | `2 GiB` JetStream file store (`deployments/nats/nats-server.conf`) | `GET /healthz` |
 | **`grafana`** | `3002` | `GRAFANA_PORT` | Auto-provisioned Prometheus datasource + Load Test dashboard | UI `:3002` |
-| **`ch-ui`** | `3488` | `CH_UI_PORT` | ClickHouse table browser & data preview (`telemetry` / `telemetry`) | `GET /health` |
+| **`ch-ui`** | `3488` | `CH_UI_PORT` | ClickHouse visual table explorer (`telemetry` / `telemetry`) | `GET /health` |
 
 - **Start / Upgrade**: `docker compose up -d --build`
-- **Graceful Shutdown**: All three Go services trap `SIGTERM`/`SIGINT`, drain active Fiber HTTP connections, flush in-flight micro-batches, finish active ClickHouse commits + NATS `ACK`s (`nc.Drain()`), and exit cleanly (`docker compose stop`).
-- **Clean Reset**: `docker compose down -v` removes containers and persistent volumes (`nats_data`, `clickhouse_data`).
+- **Graceful Shutdown**: All Go services trap `SIGTERM`/`SIGINT`, drain active Fiber HTTP requests, flush queued micro-batches, finish ClickHouse writes + NATS `ACK`s (`nc.Drain()`), and exit cleanly (`docker compose stop`).
+- **Clean Reset**: `docker compose down -v` removes containers and data volumes.
 
 ### Load Test Results (Grafana)
 
-Tested on Apple M4 Max (Docker VM: `16` vCPUs, `7.65 GiB` RAM) with realistic **1 HTTP request/sec per simulated device** (`batch-per-req = 1`) while continuously querying `5m`, `24h`, and `1y` (`31.5M`-row `server-0001`) charts:
+> [!TIP]
+> **40,000 Concurrent Simulated Servers (`~40.2K` req/s = `280K` sensor readings/s)** sustained on a single node (Apple M4 Max Docker VM: `16` vCPUs, `7.65 GiB` RAM) with **`0` HTTP errors**, **`0` persistence lag**, and **`~13.8 ms` 1-year server query latency** (`< 1,000 ms` SLO).
 
-- **Sustained Load (Single Node)**: **`40,000` concurrent simulated servers** (`~40,000` req/s = `280,000` sensor readings/s) with **`0` HTTP errors** and **`0` persistence lag**.
-- **1-Year Chart Latency Under Load**: **`~14 ms` server / `23–39.6 ms` `p95` HTTP RTT** (`<< 1,000 ms` requirement).
-- **Bottleneck**: Beyond `~40k–45k` devices, edge HTTP concurrency on `ingestor` (`~160%` CPU, `8 ms` WAL durability wait) and ClickHouse's `2 GiB` configured memory cap reach their single-node limits first, while `processor` and `nats` stay around `10%` CPU. *(See [`docs/LOAD_TEST.md`](docs/LOAD_TEST.md) for the step table and 10k-device WAN plan.)*
+Beyond `~40k–45k` independent 1-req/sec devices, `ingestor` HTTP concurrency (`8 ms` WAL durability wait) and ClickHouse's `2 GiB` container memory cap reach their single-node limits first, while `processor` and `nats` stay near `10%` CPU. *(Full step table and 10k-device WAN plan in [`docs/LOAD_TEST.md`](docs/LOAD_TEST.md).)*
 
 ![Grafana Live Load Test Dashboard](docs/graphs/grafana_loadtest.png)

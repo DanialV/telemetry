@@ -6,7 +6,7 @@
 ![ClickHouse](https://img.shields.io/badge/DB-ClickHouse-059669?style=flat-square&logo=clickhouse&logoColor=white)
 ![Grafana](https://img.shields.io/badge/Metrics-Prometheus_%2B_Grafana-e11d48?style=flat-square&logo=grafana&logoColor=white)
 
-High-throughput Go telemetry platform built with **Hexagonal Architecture**, **Fiber**, **NATS JetStream**, **ClickHouse**, and **Prometheus + Grafana**. It ingests 7 percentage sensors (`0–100%`) emitted every second per server and serves `5m` to `1y` charts in **`~10–25 ms`** (`< 1s` target).
+High-throughput Go telemetry platform built with **Hexagonal Architecture**, **Fiber**, **NATS JetStream**, **ClickHouse**, and **Prometheus + Grafana**. It ingests 7 percentage sensors (`0–100%`) emitted every second per server and serves `5m` to `1y` charts in **`21.3–32.7 ms` `p50` (`23.3–39.6 ms` `p95` under load; `< 1s` target)**.
 
 - **Architecture & System Design**: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - **Detailed Load-Test Report**: [`docs/LOAD_TEST.md`](docs/LOAD_TEST.md)
@@ -73,12 +73,12 @@ flowchart LR
    - [`usecase.IngestService`](internal/usecase/ingest.go) passes samples to [`natspub.Publisher`](internal/adapter/outbound/natspub/publisher.go), where worker goroutines group concurrent requests over **`8 ms` / `4,000` samples**, encode a compact `TLMB` binary frame ([`codec/batch.go`](internal/adapter/codec/batch.go)), and wait for NATS JetStream's disk `PubAck` before returning `202 Accepted` (`503` backpressure if the `2 GiB` WAL fills up).
 
 3. **Pull Consumption, Sorting & Columnar Write (`processor`)**
-   - [`natssub.Consumer`](internal/adapter/inbound/natssub/consumer.go) pulls frame batches from JetStream (`WorkQueuePolicy`), and [`usecase.ProcessBatchService`](internal/usecase/process.go) sorts rows by `(DeviceID, Timestamp)` so ClickHouse writes sequentially and drops retried duplicate blocks by hash.
+   - [`natssub.Consumer`](internal/adapter/inbound/natssub/consumer.go) pulls frame batches from JetStream (`WorkQueuePolicy`), and [`usecase.ProcessBatchService`](internal/usecase/process.go) sorts rows by `(DeviceID, Timestamp)` so ClickHouse writes sequentially (deduplicating in-place batch retries by block hash across raw and rollup tables, with at-least-once delivery if messages regroup after a crash or client HTTP retry; see [`ADR-004`](docs/adr/004-wide-schema-and-block-deduplication.md)).
    - [`clickhouse/writer.go`](internal/adapter/outbound/clickhouse/writer.go) appends native typed columns (`PrepareBatch` + `Column.Append`) and sends JetStream `msg.Ack()` **only after** commit (`NakWithDelay` on error).
 
 4. **Write-Time Rollups & Sub-Second Query Routing (`query-api`)**
    - On insert ([`clickhouse/schema.go`](internal/adapter/outbound/clickhouse/schema.go)), ClickHouse Materialized Views update `telemetry_1m`, `telemetry_1h` (`avgState`, `min`, `max`), and `devices_registry`.
-   - [`domain.SelectResolution`](internal/domain/query.go) routes `≤ 1h` to `1s` raw, `≤ 7d` to `1m`, and `> 7d–1y` to `1h` (`8,760` rows max), returning to [`web/index.html`](web/index.html) in `~10–20 ms`.
+   - [`domain.SelectResolution`](internal/domain/query.go) routes `≤ 1h` to `1s` raw, `≤ 7d` to `1m`, and `> 7d–1y` to `1h` (`8,760` rows max), returning to [`web/index.html`](web/index.html) in `21.3–32.7 ms` `p50` (`23.3–39.6 ms` `p95` under load; `~13.8 ms` server-side).
 
 ---
 
@@ -103,7 +103,7 @@ flowchart LR
 ### Load Test Results (Grafana)
 
 > [!TIP]
-> **40,000 Concurrent Simulated Servers (`~40.2K` req/s = `280K` sensor readings/s)** sustained on a single node (Apple M4 Max Docker VM: `16` vCPUs, `7.65 GiB` RAM) with **`0` HTTP errors**, **`0` persistence lag**, and **`~13.8 ms` 1-year server query latency** (`< 1,000 ms` SLO).
+> **40,000 Concurrent Simulated Servers (`~40.2K` req/s = `280K` sensor readings/s)** sustained on a single node (Apple M4 Max Docker VM: `16` vCPUs, `7.65 GiB` RAM) with **`0` HTTP errors**, **`0` persistence lag**, and **`32.7 ms` `p50` / `39.6 ms` `p95` 1-year chart latency** (`~13.8 ms` server-side execution, `< 1,000 ms` SLO).
 
 Beyond `~40k–45k` independent 1-req/sec devices, `ingestor` HTTP concurrency (`8 ms` WAL durability wait) and ClickHouse's `2 GiB` container memory cap reach their single-node limits first, while `processor` and `nats` stay near `10%` CPU. *(Full step table and 10k-device WAN plan in [`docs/LOAD_TEST.md`](docs/LOAD_TEST.md).)*
 

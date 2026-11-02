@@ -30,6 +30,6 @@ Resolution selection is modeled purely inside `internal/domain` (`TimeRange.Sele
 
 ## Consequences
 
-- **3,600x Read Reduction for 1-Year Charts**: Querying 1 full year reads **`8,760` contiguous rows** (`~2 granules` in ClickHouse) instead of `31,536,000` rows, completing in **`10–25 ms`** even during heavy ingestion storms.
+- **3,600x Read Reduction for 1-Year Charts**: Querying 1 full year reads **`8,760` contiguous rows** (`~2 granules` in ClickHouse) instead of `31,536,000` rows, completing in **`21.3–32.7 ms` `p50` (`23.3–39.6 ms` `p95` across `1k–40k` concurrent devices; `~13.8 ms` server-side)** even during heavy ingestion storms.
 - **Negligible Storage Overhead**: `1m` (`525,600` rows/device/yr) and `1h` (`8,760` rows/device/yr) together add `< 3%` to raw storage volume.
 - **Sub-Millisecond Device Autocomplete**: `devices_registry` (`ORDER BY device_id`) serves `/api/v1/devices?q=...` in `< 2 ms` without scanning raw telemetry tables.

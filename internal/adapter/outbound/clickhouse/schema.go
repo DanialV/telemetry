@@ -44,7 +44,8 @@ var schemaStatements = []string{
 	)
 	ENGINE = AggregatingMergeTree()
 	PARTITION BY toYYYYMM(bucket)
-	ORDER BY (device_id, bucket)`,
+	ORDER BY (device_id, bucket)
+	SETTINGS non_replicated_deduplication_window = 1000`,
 
 	`CREATE MATERIALIZED VIEW IF NOT EXISTS mv_telemetry_1m TO telemetry_1m AS
 	SELECT
@@ -87,7 +88,8 @@ var schemaStatements = []string{
 	)
 	ENGINE = AggregatingMergeTree()
 	PARTITION BY toYYYYMM(bucket)
-	ORDER BY (device_id, bucket)`,
+	ORDER BY (device_id, bucket)
+	SETTINGS non_replicated_deduplication_window = 1000`,
 
 	`CREATE MATERIALIZED VIEW IF NOT EXISTS mv_telemetry_1h TO telemetry_1h AS
 	SELECT
@@ -108,7 +110,8 @@ var schemaStatements = []string{
 		last_seen SimpleAggregateFunction(max, DateTime('UTC'))
 	)
 	ENGINE = AggregatingMergeTree()
-	ORDER BY device_id`,
+	ORDER BY device_id
+	SETTINGS non_replicated_deduplication_window = 1000`,
 
 	`CREATE MATERIALIZED VIEW IF NOT EXISTS mv_devices_registry TO devices_registry AS
 	SELECT

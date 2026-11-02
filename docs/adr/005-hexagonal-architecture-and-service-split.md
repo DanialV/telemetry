@@ -13,7 +13,7 @@ This system must remain maintainable by a multi-engineer team over several years
    - `internal/domain`: Pure Go standard library (`errors`, `math`, `strings`, `time`). Encapsulates `DeviceID`, `Percentage` (`0..100` invariant), `Sensor`, `Sample`, `TimeRange`, and `Resolution` routing rules (`1s`, `1m`, `1h`). Zero JSON tags, SQL strings, HTTP statuses, or SDK types.
    - `internal/ports`: Inbound (`TelemetryIngestor`, `BatchProcessor`, `TelemetryQuery`) and Outbound (`StreamPublisher`, `SampleWriter`, `SampleReader`, `MetricsRecorder`) interfaces referencing only `context.Context` and `domain` types.
    - `internal/usecase`: Pure orchestration (`IngestService`, `ProcessBatchService`, `QueryService`) with zero infrastructure imports.
-   - `internal/adapter/{inbound,outbound}`: Owns HTTP JSON/gzip DTOs, embedded HTML UI, NATS wire framing, and ClickHouse columnar SQL.
+   - `internal/adapter/{codec,inbound,outbound}`: Owns Fiber HTTP JSON/gzip DTOs, NATS wire framing, and ClickHouse columnar SQL (with the single-file HTML dashboard in top-level `web/`).
 2. **Three Independent Runtime Binaries (`cmd/ingestor`, `cmd/processor`, `cmd/query-api`)**:
    - Compiled from the same repository and wired solely in thin `main.go` composition roots.
 

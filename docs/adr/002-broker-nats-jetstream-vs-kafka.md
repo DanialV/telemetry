@@ -22,7 +22,7 @@ However, the challenge also requires the entire stack to boot cleanly with a sin
 
 ## Alternatives Considered
 
-- **Apache Kafka (KRaft) in Local Compose**: Industry standard for partitioned log storage and multi-consumer replay, and our preferred choice in a multi-node production cluster. Deferred for the single-node Compose deliverable because a JVM broker reserves `1–2 GiB` RAM and longer startup warmup on a constrained single-machine benchmark, whereas NATS JetStream runs in `~25 MiB` RAM with `< 1s` startup while providing identical disk-backed ACK semantics.
+- **Apache Kafka (KRaft) in Local Compose**: Industry standard for partitioned log storage and multi-consumer replay, and our preferred choice in a multi-node production cluster. Deferred for the single-node Compose deliverable because a JVM broker reserves `1–2 GiB` RAM and longer startup warmup on a constrained single-machine benchmark, whereas NATS JetStream runs in `~52–92 MiB` RAM under load with `< 1s` startup while providing identical disk-backed ACK semantics.
 - **In-Memory Go Channel Only**: Zero external broker, but violates reliable ingestion if `ingestor`/`processor` crashes or restarts before flushing to ClickHouse.
 
 ## Evolution Trigger

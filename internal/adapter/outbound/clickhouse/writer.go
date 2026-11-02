@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	ch "github.com/ClickHouse/clickhouse-go/v2"
+
 	"github.com/danialv/telemetry/internal/domain"
 )
 
@@ -13,7 +15,10 @@ func (r *Repository) WriteBatch(ctx context.Context, samples []domain.Sample) er
 		return nil
 	}
 
-	batch, err := r.conn.PrepareBatch(ctx, "INSERT INTO telemetry_raw (device_id, ts, cpu, memory, disk_space, disk_busy, net_rx, net_tx, fan)")
+	writeCtx := ch.Context(ctx, ch.WithSettings(ch.Settings{
+		"deduplicate_blocks_in_dependent_materialized_views": 1,
+	}))
+	batch, err := r.conn.PrepareBatch(writeCtx, "INSERT INTO telemetry_raw (device_id, ts, cpu, memory, disk_space, disk_busy, net_rx, net_tx, fan)")
 	if err != nil {
 		return fmt.Errorf("prepare batch: %w", err)
 	}

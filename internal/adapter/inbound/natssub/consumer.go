@@ -163,9 +163,16 @@ func (c *Consumer) workerLoop(ctx context.Context) {
 			continue
 		}
 
-		writeCtx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-		procErr := c.processor.Process(writeCtx, samples)
-		cancel()
+		var procErr error
+		for attempt := 0; attempt < 2; attempt++ {
+			writeCtx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			procErr = c.processor.Process(writeCtx, samples)
+			cancel()
+			if procErr == nil {
+				break
+			}
+			time.Sleep(250 * time.Millisecond)
+		}
 
 		if procErr != nil {
 			c.logger.Error("batch persistence failed; naking for redelivery", "samples", len(samples), "error", procErr)
